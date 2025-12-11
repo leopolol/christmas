@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Liste de Noël</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-100">
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <header class="mb-8">
+      <h1 class="text-3xl font-bold text-slate-900 mb-2">
+        🎄 Liste de Noël
+      </h1>
+      <p class="text-slate-600">
+        Ajoute tes idées de cadeaux, partage ce lien à tes proches, et chacun
+        peut réserver un cadeau pour éviter les doublons.
+      </p>
+      <p id="editModeLabel" class="mt-2 text-xs font-medium text-slate-500">
+        Mode visiteur (aucune édition possible pour l’instant).
+      </p>
+    </header>
+
+    <!-- Bloc identité -->
+    <section class="mb-6">
+      <label class="block text-sm font-medium text-slate-700 mb-1" for="userName">
+        Ton prénom (affiché quand tu réserves un cadeau)
+      </label>
+      <input
+        id="userName"
+        type="text"
+        placeholder="Ex : Léo"
+        class="w-full md:w-64 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
+      />
+    </section>
+
+    <!-- Formulaire d'ajout / édition de cadeau (caché en mode visiteur) -->
+    <section id="editSection" class="mb-10 hidden">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 md:p-6">
+        <div class="flex items-center justify-between mb-2">
+          <h2 id="formTitle" class="text-xl font-semibold text-slate-900">
+            Ajouter une idée cadeau
+          </h2>
+          <button
+            id="cancelEditBtn"
+            type="button"
+            class="hidden text-xs font-medium text-slate-500 hover:text-slate-700"
+          >
+            Annuler la modification
+          </button>
+        </div>
+        <form id="giftForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="title">
+              Nom du cadeau *
+            </label>
+            <input
+              id="title"
+              type="text"
+              required
+              placeholder="Ex : Livre 'Sapiens'"
+              class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="description">
+              Description / détails
+            </label>
+            <textarea
+              id="description"
+              rows="2"
+              placeholder="Taille, couleur, préférences, etc."
+              class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            ></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="link">
+              Lien principal (Amazon, Fnac, autre...)
+            </label>
+            <input
+              id="link"
+              type="url"
+              placeholder="https://..."
+              class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="variantUrl">
+              URL de variante (autre site, autre modèle...)
+            </label>
+            <input
+              id="variantUrl"
+              type="url"
+              placeholder="https://... (optionnel)"
+              class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="imageUrl">
+              URL d'image (optionnel)
+            </label>
+            <input
+              id="imageUrl"
+              type="url"
+              placeholder="https://exemple.com/image.jpg"
+              class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+
+          <div class="pt-2">
+            <button
+              type="submit"
+              class="inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+            >
+              Enregistrer
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Liste des cadeaux -->
+    <section>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold text-slate-900">
+          Liste des cadeaux
+        </h2>
+        <span id="giftCount" class="text-sm text-slate-500"></span>
+      </div>
+
+      <div id="giftList" class="space-y-4">
+        <!-- Les cartes cadeaux seront injectées ici -->
+      </div>
+    </section>
+  </div>
+
+  <!-- Bouton pour activer le mode édition (visible en rouge) -->
+  <button
+    id="adminToggle"
+    type="button"
+    class="fixed bottom-3 right-3 rounded-full px-4 py-2 text-xs font-semibold bg-red-600 text-white shadow-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+    title="Activer le mode édition"
+  >
+    Mode édition
+  </button>
+
+  <!-- Script Firebase + logique de l'app en V12 -->
+  <script type="module">
+    // Import Firebase v12 (modulaire) depuis les CDN
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      onSnapshot,
+      query,
+      orderBy,
+      doc,
+      getDoc,
+      updateDoc,
+      deleteDoc,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js";
+
+    // Config de ton projet (celle que tu m'as donnée)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCndbANVdwXSd7wFP4nz2XCj-SJ1FoufX0",
+      authDomain: "noel-15e6f.firebaseapp.com",
+      projectId: "noel-15e6f",
+      storageBucket: "noel-15e6f.firebasestorage.app",
+      messagingSenderId: "114172371506",
+      appId: "1:114172371506:web:51b588b29d42b50069922b",
+      measurementId: "G-0W6RFEBLY3"
+    };
+
+    // Initialisation Firebase + Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // ---- Variables DOM ----
+    const giftForm = document.getElementById("giftForm");
+    const giftList = document.getElementById("giftList");
+    const giftCount = document.getElementById("giftCount");
+    const userNameInput = document.getElementById("userName");
+    const editSection = document.getElementById("editSection");
+    const formTitle = document.getElementById("formTitle");
+    const cancelEditBtn = document.getElementById("cancelEditBtn");
+    const editModeLabel = document.getElementById("editModeLabel");
+    const adminToggle = document.getElementById("adminToggle");
+
+    const titleInput = document.getElementById("title");
+    const descriptionInput = document.getElementById("description");
+    const linkInput = document.getElementById("link");
+    const variantUrlInput = document.getElementById("variantUrl");
+    const imageUrlInput = document.getElementById("imageUrl");
+
+    const ADMIN_CODE = "noel2025"; // change-le si tu veux
+
+    let isEditMode = false;
+    let currentEditId = null;
+    let lastDocs = [];
+
+    // Sauvegarde du prénom en localStorage
+    const storedName = localStorage.getItem("christmasListUserName");
+    if (storedName) {
+      userNameInput.value = storedName;
+    }
+    userNameInput.addEventListener("input", () => {
+      localStorage.setItem("christmasListUserName", userNameInput.value.trim());
+    });
+
+    // ---- Gestion du mode édition ----
+    function updateEditModeUI() {
+      if (isEditMode) {
+        editSection.classList.remove("hidden");
+        editModeLabel.textContent = "Mode ÉDITION activé (ajout / modification / suppression).";
+      } else {
+        editSection.classList.add("hidden");
+        editModeLabel.textContent = "Mode visiteur (aucune édition possible pour l’instant).";
+        clearForm();
+        currentEditId = null;
+      }
+      renderGifts();
+    }
+
+    adminToggle.addEventListener("click", () => {
+      const code = prompt("Code édition :");
+      if (!code) return;
+      if (code === ADMIN_CODE) {
+        isEditMode = !isEditMode;
+        updateEditModeUI();
+      } else {
+        alert("Code incorrect.");
+      }
+    });
+
+    // ---- Gestion formulaire (ajout / édition) ----
+    function clearForm() {
+      giftForm.reset(); // vide tous les champs
+      formTitle.textContent = "Ajouter une idée cadeau";
+      cancelEditBtn.classList.add("hidden");
+      currentEditId = null;
+    }
+
+    cancelEditBtn.addEventListener("click", () => {
+      clearForm();
+    });
+
+    giftForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const title = titleInput.value.trim();
+      const description = descriptionInput.value.trim();
+      const link = linkInput.value.trim();
+      const variantUrl = variantUrlInput.value.trim();
+      const imageUrl = imageUrlInput.value.trim();
+
+      if (!title) {
+        alert("Merci d'indiquer un nom de cadeau.");
+        return;
+      }
+
+      try {
+        if (currentEditId) {
+          // Mise à jour
+          const ref = doc(db, "gifts", currentEditId);
+          await updateDoc(ref, {
+            title,
+            description,
+            link,
+            variantUrl,
+            imageUrl
+          });
+        } else {
+          // Création
+          await addDoc(collection(db, "gifts"), {
+            title,
+            description,
+            link,
+            variantUrl,
+            imageUrl,
+            takenBy: null,
+            createdAt: serverTimestamp()
+          });
+        }
+
+        clearForm(); // on vide tout après enregistrement
+      } catch (error) {
+        console.error("Erreur lors de l'enregistrement du cadeau :", error);
+        alert("Erreur lors de l'enregistrement. Regarde la console.");
+      }
+    });
+
+    // ---- Écoute temps réel des cadeaux ----
+    const giftsQuery = query(collection(db, "gifts"), orderBy("createdAt", "asc"));
+
+    onSnapshot(giftsQuery, (snapshot) => {
+      lastDocs = [];
+      const count = snapshot.size;
+      giftCount.textContent =
+        count > 0 ? count + " cadeau(x) dans la liste" : "Aucun cadeau pour le moment";
+
+      snapshot.forEach((docSnap) => {
+        lastDocs.push({ id: docSnap.id, data: docSnap.data() });
+      });
+
+      renderGifts();
+    });
+
+    function renderGifts() {
+      giftList.innerHTML = "";
+      lastDocs.forEach(({ id, data }) => {
+        const card = createGiftCard(id, data);
+        giftList.appendChild(card);
+      });
+    }
+
+    // ---- Création de la carte cadeau ----
+    function createGiftCard(id, gift) {
+      const wrapper = document.createElement("div");
+      wrapper.className =
+        "bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-5 flex flex-col md:flex-row gap-4";
+
+      // Image
+      if (gift.imageUrl) {
+        const imgContainer = document.createElement("div");
+        imgContainer.className = "md:w-32 flex-shrink-0";
+
+        const img = document.createElement("img");
+        img.src = gift.imageUrl;
+        img.alt = gift.title || "";
+        img.className = "w-full h-24 object-cover rounded-xl border border-slate-200";
+
+        imgContainer.appendChild(img);
+        wrapper.appendChild(imgContainer);
+      }
+
+      const content = document.createElement("div");
+      content.className = "flex-1 flex flex-col gap-2";
+
+      const headerRow = document.createElement("div");
+      headerRow.className = "flex flex-col md:flex-row md:items-center md:justify-between gap-2";
+
+      const titleEl = document.createElement("h3");
+      titleEl.className = "text-base font-semibold text-slate-900";
+      titleEl.textContent = gift.title || "(Sans titre)";
+
+      const statusBadge = document.createElement("span");
+      statusBadge.className =
+        "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium";
+
+      if (gift.takenBy) {
+        statusBadge.className += " bg-emerald-100 text-emerald-800";
+        statusBadge.textContent = "Réservé par " + gift.takenBy;
+      } else {
+        statusBadge.className += " bg-slate-100 text-slate-700";
+        statusBadge.textContent = "Disponible";
+      }
+
+      headerRow.appendChild(titleEl);
+      headerRow.appendChild(statusBadge);
+      content.appendChild(headerRow);
+
+      if (gift.description) {
+        const descEl = document.createElement("p");
+        descEl.className = "text-sm text-slate-600";
+        descEl.textContent = gift.description;
+        content.appendChild(descEl);
+      }
+
+      // Liens
+      const linksRow = document.createElement("div");
+      linksRow.className = "flex flex-wrap gap-3 items-center text-sm";
+
+      if (gift.link) {
+        const linkEl = document.createElement("a");
+        linkEl.href = gift.link;
+        linkEl.target = "_blank";
+        linkEl.rel = "noopener noreferrer";
+        linkEl.className = "font-medium text-emerald-700 hover:text-emerald-800 underline";
+        linkEl.textContent = "Voir le lien";
+        linksRow.appendChild(linkEl);
+      }
+
+      if (gift.variantUrl) {
+        const variantEl = document.createElement("a");
+        variantEl.href = gift.variantUrl;
+        variantEl.target = "_blank";
+        variantEl.rel = "noopener noreferrer";
+        variantEl.className = "font-medium text-sky-700 hover:text-sky-800 underline";
+        variantEl.textContent = "Voir une variante";
+        linksRow.appendChild(variantEl);
+      }
+
+      if (linksRow.childNodes.length > 0) {
+        content.appendChild(linksRow);
+      }
+
+      // Boutons (réservation + édition éventuelle)
+      const actionsRow = document.createElement("div");
+      actionsRow.className = "mt-2 flex flex-wrap gap-2 items-center";
+
+      // Bouton réservation (toujours visible)
+      const mainButton = document.createElement("button");
+      mainButton.className =
+        "inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-offset-1";
+
+      if (gift.takenBy) {
+        mainButton.textContent = "Annuler ma réservation";
+        mainButton.className += " bg-slate-200 text-slate-800 hover:bg-slate-300";
+      } else {
+        mainButton.textContent = "Je le prends";
+        mainButton.className += " bg-emerald-600 text-white hover:bg-emerald-700";
+      }
+
+      mainButton.addEventListener("click", () => toggleGiftReservation(id, gift));
+      actionsRow.appendChild(mainButton);
+
+      // Boutons d'édition (uniquement en mode édition)
+      if (isEditMode) {
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.textContent = "Modifier";
+        editBtn.className =
+          "inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-offset-1";
+        editBtn.addEventListener("click", () => startEditGift(id, gift));
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.textContent = "Supprimer";
+        deleteBtn.className =
+          "inline-flex items-center justify-center rounded-xl px-3 py-1.5 text-xs font-semibold bg-red-100 text-red-700 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-1";
+        deleteBtn.addEventListener("click", () => deleteGift(id));
+
+        actionsRow.appendChild(editBtn);
+        actionsRow.appendChild(deleteBtn);
+      }
+
+      content.appendChild(actionsRow);
+      wrapper.appendChild(content);
+      return wrapper;
+    }
+
+    // ---- Réserver / annuler la réservation ----
+    async function toggleGiftReservation(id, gift) {
+      let currentName = userNameInput.value.trim();
+      if (!currentName) {
+        currentName = prompt("Indique ton prénom pour réserver ce cadeau :") || "";
+        currentName = currentName.trim();
+        if (!currentName) return;
+        userNameInput.value = currentName;
+        localStorage.setItem("christmasListUserName", currentName);
+      }
+
+      try {
+        const ref = doc(db, "gifts", id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return;
+
+        const currentData = snap.data();
+
+        if (currentData.takenBy) {
+          if (currentData.takenBy !== currentName) {
+            alert("Ce cadeau est déjà réservé par " + currentData.takenBy + ".");
+            return;
+          }
+          await updateDoc(ref, { takenBy: null });
+        } else {
+          await updateDoc(ref, { takenBy: currentName });
+        }
+      } catch (error) {
+        console.error("Erreur lors de la réservation :", error);
+        alert("Erreur lors de la réservation. Regarde la console.");
+      }
+    }
+
+    // ---- Démarrage édition d'un cadeau ----
+    function startEditGift(id, gift) {
+      currentEditId = id;
+      formTitle.textContent = "Modifier le cadeau";
+      cancelEditBtn.classList.remove("hidden");
+
+      titleInput.value = gift.title || "";
+      descriptionInput.value = gift.description || "";
+      linkInput.value = gift.link || "";
+      variantUrlInput.value = gift.variantUrl || "";
+      imageUrlInput.value = gift.imageUrl || "";
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    // ---- Suppression d'un cadeau ----
+    async function deleteGift(id) {
+      const ok = confirm("Supprimer ce cadeau de la liste ?");
+      if (!ok) return;
+
+      try {
+        const ref = doc(db, "gifts", id);
+        await deleteDoc(ref);
+      } catch (error) {
+        console.error("Erreur lors de la suppression :", error);
+        alert("Erreur lors de la suppression. Regarde la console.");
+      }
+    }
+  </script>
+</body>
+</html>
